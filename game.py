@@ -8,29 +8,35 @@ import numpy as np
 
 
 class Board(object):
-    """board for the game"""
+    """
+    board for the game
+    like a x-y Cartesian coordinate system
+    the (0,0) is 0 and coming to the right
+    each row/column starts with 0(array-like)
+    """
 
     def __init__(self, **kwargs):
         self.width = int(kwargs.get('width', 8))
         self.height = int(kwargs.get('height', 8))
-        # board states stored as a dict,
+        # kwargs is a parameter in the form of dictionary
         # key: move as location on the board,
         # value: player as pieces type
-        self.states = {}
-        # need how many pieces in a row to win
-        self.n_in_row = int(kwargs.get('n_in_row', 5))
-        self.players = [1, 2]  # player1 and player2
+        self.states = {}                                # board states stored as a dict,
+        self.n_in_row = int(kwargs.get('n_in_row', 5))  # need how many pieces in a row to win
+        self.players = [1, 2]                           # player1 and player2
 
     def init_board(self, start_player=0):
         if self.width < self.n_in_row or self.height < self.n_in_row:
             raise Exception('board width and height can not be '
                             'less than {}'.format(self.n_in_row))
+
         self.current_player = self.players[start_player]  # start player
         # keep available moves in a list
-        self.availables = list(range(self.width * self.height))
+        self.availables = list(range(self.width * self.height)) # a list including all the MOVE in the board starting from 0
         self.states = {}
         self.last_move = -1
 
+    # move is a single value marking the position of the current point, while location is a (x,y) location
     def move_to_location(self, move):
         """
         3*3 board's moves like:
@@ -39,7 +45,7 @@ class Board(object):
         0 1 2
         and move 5's location is (1,2)
         """
-        h = move // self.width
+        h = move // self.width  #return the integer part of the result after the divide
         w = move % self.width
         return [h, w]
 
@@ -53,9 +59,10 @@ class Board(object):
             return -1
         return move
 
+    ######################
     def current_state(self):
         """return the board state from the perspective of the current player.
-        state shape: 4*width*height
+        state shape: 4*width*height --- a 4 level matrix
         """
 
         square_state = np.zeros((4, self.width, self.height))
@@ -65,19 +72,26 @@ class Board(object):
             move_oppo = moves[players != self.current_player]
             square_state[0][move_curr // self.width,
                             move_curr % self.height] = 1.0
+            # 0 stores cur move
             square_state[1][move_oppo // self.width,
                             move_oppo % self.height] = 1.0
-            # indicate the last move location
+            # 1 stores oppo move
             square_state[2][self.last_move // self.width,
                             self.last_move % self.height] = 1.0
+            # 2 indicate last move
         if len(self.states) % 2 == 0:
             square_state[3][:, :] = 1.0  # indicate the colour to play
+            # all 3 are 1
         return square_state[:, ::-1, :]
 
     def do_move(self, move):
+        # since states is a dictionary, so each time we do a move
+        # we select from the dict by the move as a key and insert current_player
+        # to mark that the player has put a pawn here.
         self.states[move] = self.current_player
         self.availables.remove(move)
         self.current_player = (
+            # switch players
             self.players[0] if self.current_player == self.players[1]
             else self.players[1]
         )
@@ -90,26 +104,33 @@ class Board(object):
         n = self.n_in_row
 
         moved = list(set(range(width * height)) - set(self.availables))
+        ## find the difference between two sets
         if len(moved) < self.n_in_row + 2:
             return False, -1
+            # if there is some space left, game continue
 
         for m in moved:
+            # for every used space
             h = m // width
             w = m % width
             player = states[m]
 
+            #row
             if (w in range(width - n + 1) and
                     len(set(states.get(i, -1) for i in range(m, m + n))) == 1):
+                    # here we use the length of the set, it means only unqiue value could appears here
+                    # so if len()==1 it means there are n pawns belongs to same player
+                    # note 3 states: empty(-1)/player1/player2
                 return True, player
-
+            #column
             if (h in range(height - n + 1) and
                     len(set(states.get(i, -1) for i in range(m, m + n * width, width))) == 1):
                 return True, player
-
+            #x=y direction
             if (w in range(width - n + 1) and h in range(height - n + 1) and
                     len(set(states.get(i, -1) for i in range(m, m + n * (width + 1), width + 1))) == 1):
                 return True, player
-
+            #x=-y direction
             if (w in range(n - 1, width) and h in range(height - n + 1) and
                     len(set(states.get(i, -1) for i in range(m, m + n * (width - 1), width - 1))) == 1):
                 return True, player
@@ -146,7 +167,7 @@ class Game(object):
         for x in range(width):
             print("{0:8}".format(x), end='')
         print('\r\n')
-        for i in range(height - 1, -1, -1):
+        for i in range(height - 1, -1, -1):     # print from top to the bottom
             print("{0:4d}".format(i), end='')
             for j in range(width):
                 loc = i * width + j

@@ -14,13 +14,15 @@ def rollout_policy_fn(board):
     """a coarse, fast version of policy_fn used in the rollout phase."""
     # rollout randomly
     action_probs = np.random.rand(len(board.availables))
+    # the output is an rand array of same length of board, each element belongs to [0,1)
     return zip(board.availables, action_probs)
 
 
 def policy_value_fn(board):
     """a function that takes in a state and outputs a list of (action, probability)
     tuples and a score for the state"""
-    # return uniform probabilities and 0 score for pure MCTS
+    # return uniform probabilities and 0 score for pure MCTS, 
+    # which means for n available move, each has a probability of 1/n
     action_probs = np.ones(len(board.availables))/len(board.availables)
     return zip(board.availables, action_probs), 0
 
@@ -31,6 +33,11 @@ class TreeNode(object):
     """
 
     def __init__(self, parent, prior_p):
+        """A node in the MCTS tree.
+
+        Each node keeps track of its own value Q, prior probability P, and
+        its visit-count-adjusted prior score u.
+        """
         self._parent = parent
         self._children = {}  # a map from action to TreeNode
         self._n_visits = 0
@@ -54,6 +61,8 @@ class TreeNode(object):
         """
         return max(self._children.items(),
                    key=lambda act_node: act_node[1].get_value(c_puct))
+                   # this lambda means the max-key is the dict-value. and it should be a new Tree node
+                   # and the get value returns its Q and u
 
     def update(self, leaf_value):
         """Update node values from leaf evaluation.
@@ -64,6 +73,11 @@ class TreeNode(object):
         self._n_visits += 1
         # Update Q, a running average of values for all visits.
         self._Q += 1.0*(leaf_value - self._Q) / self._n_visits
+        #---------------------------------
+        # like for a MCTS 8/10->3/5->[0/1]
+        # there are 10 plays and now we add a new 0/1 to the tree and its parent is 3/5
+        # we should update the Q of 3/5 to be Q'=Q+1*(0/1-3/5)/(5+1)=3/6    updated!
+        #---------------------------------
 
     def update_recursive(self, leaf_value):
         """Like a call to update(), but applied recursively for all ancestors.
@@ -72,8 +86,10 @@ class TreeNode(object):
         if self._parent:
             self._parent.update_recursive(-leaf_value)
         self.update(leaf_value)
+        ## the update starts from 8/10 in the same way to update it into 8/11
 
     def get_value(self, c_puct):
+        # up to now we only consider about the value of Q and n_visited
         """Calculate and return the value for this node.
         It is a combination of leaf evaluations Q, and this node's prior
         adjusted for its visit count, u.
@@ -119,17 +135,18 @@ class MCTS(object):
         node = self._root
         while(1):
             if node.is_leaf():
-
                 break
             # Greedily select next move.
             action, node = node.select(self._c_puct)
             state.do_move(action)
 
+        # here reaches the end of tree but still not end of the game
         action_probs, _ = self._policy(state)
         # Check for end of game
         end, winner = state.game_end()
         if not end:
             node.expand(action_probs)
+
         # Evaluate the leaf node by random rollout
         leaf_value = self._evaluate_rollout(state)
         # Update value and visit count of nodes in this traversal.
@@ -141,6 +158,7 @@ class MCTS(object):
         and 0 if it is a tie.
         """
         player = state.get_current_player()
+        # this is for one single MCTS process, do the random play
         for i in range(limit):
             end, winner = state.game_end()
             if end:

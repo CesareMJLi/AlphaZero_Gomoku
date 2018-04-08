@@ -14,7 +14,8 @@ def softmax(x):
     probs = np.exp(x - np.max(x))
     probs /= np.sum(probs)
     return probs
-
+    # for a vector x, return a normalized new vector
+    # the sum of length of all directions is 1
 
 class TreeNode(object):
     """A node in the MCTS tree.
