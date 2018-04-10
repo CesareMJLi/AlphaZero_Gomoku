@@ -10,6 +10,8 @@ import copy
 from operator import itemgetter
 
 
+# incommon cast each tree use two network for guiding the search
+# one policy network and one value network
 def rollout_policy_fn(board):
     """a coarse, fast version of policy_fn used in the rollout phase."""
     # rollout randomly

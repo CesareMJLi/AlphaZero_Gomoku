@@ -36,10 +36,13 @@ class TreeNode(object):
         """Expand tree by creating new children.
         action_priors: a list of tuples of actions and their prior probability
             according to the policy function.
+
+            generating a structure just like s->{a1:p1,a2:p2,a3:p3,...}
         """
         for action, prob in action_priors:
             if action not in self._children:
                 self._children[action] = TreeNode(self, prob)
+
 
     def select(self, c_puct):
         """Select action among children that gives maximum action value Q
@@ -48,24 +51,6 @@ class TreeNode(object):
         """
         return max(self._children.items(),
                    key=lambda act_node: act_node[1].get_value(c_puct))
-
-    def update(self, leaf_value):
-        """Update node values from leaf evaluation.
-        leaf_value: the value of subtree evaluation from the current player's
-            perspective.
-        """
-        # Count visit.
-        self._n_visits += 1
-        # Update Q, a running average of values for all visits.
-        self._Q += 1.0*(leaf_value - self._Q) / self._n_visits
-
-    def update_recursive(self, leaf_value):
-        """Like a call to update(), but applied recursively for all ancestors.
-        """
-        # If it is not root, this node's parent should be updated first.
-        if self._parent:
-            self._parent.update_recursive(-leaf_value)
-        self.update(leaf_value)
 
     def get_value(self, c_puct):
         """Calculate and return the value for this node.
@@ -77,6 +62,31 @@ class TreeNode(object):
         self._u = (c_puct * self._P *
                    np.sqrt(self._parent._n_visits) / (1 + self._n_visits))
         return self._Q + self._u
+
+    def update(self, leaf_value):
+        """Update node values from leaf evaluation.
+        leaf_value: the value of subtree evaluation from the current player's
+            perspective.
+        """
+        # Count visit.
+        self._n_visits += 1
+        # Update Q, a running average of values for all visits.
+        self._Q += 1.0*(leaf_value - self._Q) / self._n_visits
+        #---------------------------------
+        # like for a MCTS 8/10->3/5->[0/1]
+        # there are 10 plays and now we add a new 0/1 to the tree and its parent is 3/5
+        # we should update the Q of 3/5 to be Q'=Q+1*(0/1-3/5)/(5+1)=3/6    updated!
+        #---------------------------------
+
+    def update_recursive(self, leaf_value):
+        """Like a call to update(), but applied recursively for all ancestors.
+        """
+        # If it is not root, this node's parent should be updated first.
+        if self._parent:
+            self._parent.update_recursive(-leaf_value)
+        self.update(leaf_value)
+        ## -leaf_value is used since when player1 wins, player2 fails
+        ## the update starts from 8/10 in the same way to update it into 8/11
 
     def is_leaf(self):
         """Check if leaf node (i.e. no nodes below this have been expanded)."""
@@ -121,6 +131,8 @@ class MCTS(object):
         # (action, probability) tuples p and also a score v in [-1, 1]
         # for the current player.
         action_probs, leaf_value = self._policy(state)
+        # from the neural network get current value, and dict {action:prob}
+
         # Check for end of game.
         end, winner = state.game_end()
         if not end:
@@ -144,6 +156,8 @@ class MCTS(object):
         temp: temperature parameter in (0, 1] controls the level of exploration
         """
         for n in range(self._n_playout):
+            # _n_playout bound the max time to play
+            # doing playout under current state
             state_copy = copy.deepcopy(state)
             self._playout(state_copy)
 
